@@ -36,9 +36,9 @@ public class MainView {
     private TextField emailField;
     private RadioButton rbFiltraPeriodo = new RadioButton("Filtrar por Perí­odo");
     private RadioButton rbFiltraMarca = new RadioButton("Filtrar por Marca");
-    ;
     private ToggleGroup filtroToggleGroup;
-    private DatePicker dpFiltroPeriodo;
+    private DatePicker dpDataInicio;
+    private DatePicker dpDataFim;
     private ComboBox<Marca> cbFiltroMarca;
     private VBox filtroContainer;
 
@@ -70,11 +70,14 @@ public class MainView {
             // Mudar de new FaturaDAO().listarFaturas() para:
             ObservableList<Fatura> faturas;
             if (rbFiltraPeriodo.isSelected()) {
-                LocalDate dataSelecionada = dpFiltroPeriodo.getValue();
-                if (dataSelecionada != null) {
-                    System.out.println("Atualizando lista por período: " + dataSelecionada);
+                LocalDate dataSelecionadaInicio = dpDataInicio.getValue();
+                LocalDate dataSelecionadaFim = dpDataFim.getValue();
+                
+                
+                if (dataSelecionadaInicio != null && dataSelecionadaFim != null) {
+                    System.out.println("Atualizando lista por periodo: " + dataSelecionadaInicio + " ate: " + dataSelecionadaFim);
                     // por Periodo
-                    faturas = new FaturaDAO().listarFaturasPorPeriodo(dataSelecionada);
+                    faturas = new FaturaDAO().listarFaturasPorPeriodo(dataSelecionadaInicio, dataSelecionadaFim);
 
                 } else {
                     faturas = new FaturaDAO().listarFaturas(false);
@@ -133,7 +136,6 @@ public class MainView {
         btnNovaFatura = criarBotao("Cadastrar Nota com Faturas", "#f0a818");
         btnNovaMarca = criarBotao("Cadastrar nova marca", "#f0a818");
 
-        // O labelText foi declarado no início da classe e agora é inicializado aqui
         labelText = new Label("Bem-vindo ao GuardouPagou");
         labelText.setFont(Font.font("Arial", FontWeight.BOLD, 18));
         labelText.setTextFill(Color.web("#000000"));
@@ -532,13 +534,22 @@ public class MainView {
         rbFiltraMarca.setStyle("-fx-text-fill: #000000;");
 
         // Inicializa o DatePicker e ComboBox AQUI
-        if (dpFiltroPeriodo == null) {
-            dpFiltroPeriodo = new DatePicker();
-            dpFiltroPeriodo.setPromptText("Selecione a data");
-            dpFiltroPeriodo.setStyle("-fx-background-color: #FFFFFF; -fx-text-fill: #000000;");
-            dpFiltroPeriodo.setPrefWidth(200);
-            dpFiltroPeriodo.setVisible(false);
-            dpFiltroPeriodo.setManaged(false); // Não ocupa espaço quando invisível
+        if (dpDataInicio == null) {
+            dpDataInicio = new DatePicker();
+            dpDataInicio.setPromptText("Data inicial");
+            dpDataInicio.setStyle("-fx-background-color: #FFFFFF; -fx-text-fill: #000000;");
+            dpDataInicio.setPrefWidth(150);
+            dpDataInicio.setVisible(false);
+            dpDataInicio.setManaged(false);
+        }
+
+        if (dpDataFim == null) {
+            dpDataFim = new DatePicker();
+            dpDataFim.setPromptText("Data final");
+            dpDataFim.setStyle("-fx-background-color: #FFFFFF; -fx-text-fill: #000000;");
+            dpDataFim.setPrefWidth(150);
+            dpDataFim.setVisible(false);
+            dpDataFim.setManaged(false);
         }
 
         if (cbFiltroMarca == null) {
@@ -575,7 +586,7 @@ public class MainView {
             filtroContainer = new VBox(10);
             filtroContainer.setAlignment(Pos.CENTER_LEFT);
             filtroContainer.setPadding(new Insets(0, 0, 10, 0));
-            filtroContainer.getChildren().addAll(dpFiltroPeriodo, cbFiltroMarca);
+            filtroContainer.getChildren().addAll(dpDataInicio, dpDataFim, cbFiltroMarca);
         }
 
         toolbar.getChildren().clear();
@@ -595,23 +606,29 @@ public class MainView {
 
             rbFiltraPeriodo.setOnAction(e -> {
                 System.out.println("Filtrar por Periodo selecionado");
-                dpFiltroPeriodo.setVisible(true);
-                dpFiltroPeriodo.setManaged(true);
+                dpDataInicio.setVisible(true);
+                dpDataInicio.setManaged(true);
+                dpDataFim.setVisible(true);
+                dpDataFim.setManaged(true);
                 cbFiltroMarca.setVisible(false);
                 cbFiltroMarca.setManaged(false);
-
+                /*
                 dpFiltroPeriodo.setOnAction(event -> {
                     System.out.println("Data selecionada: " + dpFiltroPeriodo.getValue());
 
                 });
+                */
             });
 
             rbFiltraMarca.setOnAction(e -> {
                 System.out.println("Filtrar por Marca selecionado");
                 cbFiltroMarca.setVisible(true);
                 cbFiltroMarca.setManaged(true);
-                dpFiltroPeriodo.setVisible(false);
-                dpFiltroPeriodo.setManaged(false);
+                dpDataInicio.setVisible(false);
+                dpDataInicio.setManaged(false);
+                dpDataFim.setVisible(false);
+                dpDataFim.setManaged(false);
+
 
                 cbFiltroMarca.setOnAction(event -> {
                     Marca selectedMarca = cbFiltroMarca.getSelectionModel().getSelectedItem();

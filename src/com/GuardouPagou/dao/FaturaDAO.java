@@ -83,45 +83,48 @@ public class FaturaDAO {
         return faturas;
     }
 
-    public ObservableList<Fatura> listarFaturasPorPeriodo(LocalDate dataInicial) throws SQLException {
-        ObservableList<Fatura> faturas = FXCollections.observableArrayList();
-        String sql = "SELECT f.id, f.nota_fiscal_id, n.numero_nota, f.numero_fatura, f.vencimento, f.valor, f.status "
-                + "FROM faturas f "
-                + "JOIN notas_fiscais n ON f.nota_fiscal_id = n.id "
-                + "WHERE f.vencimento >= ? "
-                + "ORDER BY f.vencimento";
+    public ObservableList<Fatura> listarFaturasPorPeriodo(LocalDate dataInicial, LocalDate dataFinal) throws SQLException {
+    ObservableList<Fatura> faturas = FXCollections.observableArrayList();
+    String sql = "SELECT f.id, f.nota_fiscal_id, n.numero_nota, f.numero_fatura, f.vencimento, f.valor, f.status, n.marca "
+               + "FROM faturas f "
+               + "JOIN notas_fiscais n ON f.nota_fiscal_id = n.id "
+               + "WHERE f.vencimento BETWEEN ? AND ? "
+               + "ORDER BY f.vencimento";
 
-        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setDate(1, Date.valueOf(dataInicial));
-            ResultSet rs = stmt.executeQuery();
+        stmt.setDate(1, Date.valueOf(dataInicial));
+        stmt.setDate(2, Date.valueOf(dataFinal));
 
-            while (rs.next()) {
-                Fatura fatura = new Fatura();
-                fatura.setId(rs.getInt("id"));
-                fatura.setNumeroNota(rs.getString("numero_nota"));
-                fatura.setNumeroFatura(rs.getInt("numero_fatura"));
-                fatura.setVencimento(rs.getDate("vencimento").toLocalDate());
-                fatura.setValor(rs.getDouble("valor"));
-                fatura.setStatus(rs.getString("status"));
-                faturas.add(fatura);
-            }
+        ResultSet rs = stmt.executeQuery();
+
+        while (rs.next()) {
+            Fatura fatura = new Fatura();
+            fatura.setId(rs.getInt("id"));
+            fatura.setNumeroNota(rs.getString("numero_nota"));
+            fatura.setNumeroFatura(rs.getInt("numero_fatura"));
+            fatura.setVencimento(rs.getDate("vencimento").toLocalDate());
+            fatura.setValor(rs.getDouble("valor"));
+            fatura.setStatus(rs.getString("status"));
+            fatura.setMarca(rs.getString("marca")); // <- ESSENCIAL
+            faturas.add(fatura);
         }
-
-        return faturas;
     }
+
+    return faturas;
+}
 
     public ObservableList<Fatura> listarFaturasPorMarca(String nomeMarca) throws SQLException {
         ObservableList<Fatura> faturas = FXCollections.observableArrayList();
-        String sql = "SELECT f.id, f.nota_fiscal_id, n.numero_nota, f.numero_fatura, f.vencimento, f.valor, f.status "
-                + "FROM faturas f "
-                + "JOIN notas_fiscais n ON f.nota_fiscal_id = n.id "
-                + "WHERE n.marca ILIKE ?";
+        String sql = "SELECT f.id, f.nota_fiscal_id, n.numero_nota, f.numero_fatura, f.vencimento, f.valor, f.status, n.marca "
+                   + "FROM faturas f "
+                   + "JOIN notas_fiscais n ON f.nota_fiscal_id = n.id "
+                   + "WHERE n.marca ILIKE ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            // Permitir busca parcial ignorando maiúsculas/minúsculas
             stmt.setString(1, "%" + nomeMarca + "%");
             ResultSet rs = stmt.executeQuery();
 
@@ -133,11 +136,13 @@ public class FaturaDAO {
                 fatura.setVencimento(rs.getDate("vencimento").toLocalDate());
                 fatura.setValor(rs.getDouble("valor"));
                 fatura.setStatus(rs.getString("status"));
+                fatura.setMarca(rs.getString("marca")); // <- aqui está o campo que faltava
                 faturas.add(fatura);
             }
         }
         return faturas;
     }
+
 
     public ObservableList<Fatura> listarFaturas(boolean exibirSomenteArquivadas) throws SQLException {
         ObservableList<Fatura> faturas = FXCollections.observableArrayList();
