@@ -2,6 +2,7 @@ package com.GuardouPagou.dao;
 
 import com.GuardouPagou.models.DatabaseConnection;
 import com.GuardouPagou.models.NotaFiscal;
+import com.GuardouPagou.dao.MarcaDAO;
 import java.sql.*;
 import java.time.LocalDate;
 import java.util.List;
@@ -28,7 +29,7 @@ public class NotaFiscalDAO {
     }
 
     public int inserirNotaFiscal(NotaFiscal nota) throws SQLException {
-        String sql = "INSERT INTO notas_fiscais (numero_nota, data_emissao, marca) VALUES (?, ?, ?)";
+        String sql = "INSERT INTO notas_fiscais (numero_nota, data_emissao, marca_id) VALUES (?, ?, ?)";
         
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -36,7 +37,12 @@ public class NotaFiscalDAO {
             // Define os parâmetros da query
             stmt.setString(1, nota.getNumeroNota());
             stmt.setDate(2, Date.valueOf(nota.getDataEmissao()));
-            stmt.setString(3, nota.getMarca());
+            Integer marcaId = new MarcaDAO().obterIdPorNome(nota.getMarca());
+            if (marcaId != null) {
+                stmt.setInt(3, marcaId);
+            } else {
+                stmt.setNull(3, java.sql.Types.INTEGER);
+            }
             
             // Executa a inserção
             int affectedRows = stmt.executeUpdate();
@@ -56,7 +62,7 @@ public class NotaFiscalDAO {
     // Método adicional recomendado
     public List<NotaFiscal> listarNotasFiscais() throws SQLException {
         List<NotaFiscal> notas = new ArrayList<>();
-        String sql = "SELECT * FROM notas_fiscais";
+        String sql = "SELECT nf.*, m.nome AS marca FROM notas_fiscais nf LEFT JOIN marcas m ON nf.marca_id = m.id";
         
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
@@ -90,9 +96,10 @@ public class NotaFiscalDAO {
         List<Object> parametros = new ArrayList<>();
         
         StringBuilder sqlBuilder = new StringBuilder(
-            "SELECT nf.id, nf.numero_nota, nf.marca, nf.data_arquivamento, " +
+            "SELECT nf.id, nf.numero_nota, m.nome AS marca, nf.data_arquivamento, " +
             "(SELECT COUNT(*) FROM faturas f WHERE f.nota_fiscal_id = nf.id) as quantidade_faturas " +
             "FROM notas_fiscais nf " +
+            "LEFT JOIN marcas m ON nf.marca_id = m.id " +
             "WHERE nf.arquivada = TRUE "
         );
 
@@ -104,8 +111,11 @@ public class NotaFiscalDAO {
                 if (valor == null) continue; // Pular filtros com valor nulo
 
                 sqlBuilder.append("AND ");
-                if (coluna.equals("numero_nota") || coluna.equals("marca")) {
-                    sqlBuilder.append("LOWER(nf.").append(coluna).append(") LIKE LOWER(?) ");
+                if (coluna.equals("numero_nota")) {
+                    sqlBuilder.append("LOWER(nf.numero_nota) LIKE LOWER(?) ");
+                    parametros.add("%" + valor.toString() + "%");
+                } else if (coluna.equals("marca")) {
+                    sqlBuilder.append("LOWER(m.nome) LIKE LOWER(?) ");
                     parametros.add("%" + valor.toString() + "%");
                 } else if (coluna.equals("data_arquivamento")) {
                     sqlBuilder.append("nf.").append(coluna).append(" = ? ");

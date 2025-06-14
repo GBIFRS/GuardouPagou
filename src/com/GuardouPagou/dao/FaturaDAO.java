@@ -59,7 +59,7 @@ public class FaturaDAO {
     public ObservableList<Fatura> listarFaturas() throws SQLException {
         ObservableList<Fatura> faturas = FXCollections.observableArrayList();
         String sql = "SELECT f.id, f.nota_fiscal_id, n.numero_nota, f.numero_fatura, f.vencimento, f.valor, f.status, "
-                + "COALESCE(m.nome, n.marca) AS marca "
+                + "m.nome AS marca "
                 + "FROM faturas f "
                 + "JOIN notas_fiscais n ON f.nota_fiscal_id = n.id "
                 + "LEFT JOIN marcas m ON n.marca_id = m.id "
@@ -116,7 +116,8 @@ public class FaturaDAO {
         String sql = "SELECT f.id, f.nota_fiscal_id, n.numero_nota, f.numero_fatura, f.vencimento, f.valor, f.status "
                 + "FROM faturas f "
                 + "JOIN notas_fiscais n ON f.nota_fiscal_id = n.id "
-                + "WHERE n.marca ILIKE ?";
+                + "JOIN marcas m ON n.marca_id = m.id "
+                + "WHERE m.nome ILIKE ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -143,7 +144,7 @@ public class FaturaDAO {
         ObservableList<Fatura> faturas = FXCollections.observableArrayList();
         StringBuilder sqlBuilder = new StringBuilder(
                 "SELECT f.id, f.nota_fiscal_id, n.numero_nota, f.numero_fatura, f.vencimento, f.valor, f.status, "
-                + "COALESCE(m.nome, n.marca) AS marca, n.arquivada "
+                + "m.nome AS marca, n.arquivada "
                 + "FROM faturas f "
                 + "JOIN notas_fiscais n ON f.nota_fiscal_id = n.id "
                 + "LEFT JOIN marcas m ON n.marca_id = m.id "

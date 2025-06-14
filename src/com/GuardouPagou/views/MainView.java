@@ -1,50 +1,42 @@
 package com.GuardouPagou.views;
 
-import com.GuardouPagou.dao.MarcaDAO;
 import com.GuardouPagou.controllers.MarcaController;
 import com.GuardouPagou.dao.FaturaDAO;
-import com.GuardouPagou.dao.NotaFiscalDAO; // Adicionado: para marcar nota fiscal como arquivada
+import com.GuardouPagou.dao.MarcaDAO;
+import com.GuardouPagou.dao.NotaFiscalDAO;
 import com.GuardouPagou.models.Fatura;
 import com.GuardouPagou.models.Marca;
-import javafx.scene.layout.*;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.geometry.*;
-import javafx.scene.image.*;
+import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-import javafx.collections.ObservableList;
-import javafx.scene.control.cell.PropertyValueFactory;
+
 import java.sql.SQLException;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
-import java.util.Optional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-// As importações de HBox e Pos já estavam implícitas mas vou garantir que estejam explícitas.
-import javafx.scene.layout.HBox;
-import javafx.geometry.Pos;
-import javafx.scene.control.Label;
-import com.GuardouPagou.controllers.ArquivadasController; // Adicionado: para navegar para a tela de arquivadas
+import java.util.Optional;
 
 public class MainView {
 
+    private final RadioButton rbFiltraPeriodo = new RadioButton("Filtrar por Perí­odo");
+    private final RadioButton rbFiltraMarca = new RadioButton("Filtrar por Marca");
+    private final ToggleGroup filtroToggleGroup;
     private BorderPane root;
     private Button btnListarFaturas, btnListarMarcas, btnArquivadas;
     private Button btnNovaFatura, btnNovaMarca, btnSalvarEmail;
     private Label labelText; // Alterado de conteudoLabel para labelText para corresponder ao uso em criarUI
     private TextField emailField;
-    private RadioButton rbFiltraPeriodo = new RadioButton("Filtrar por Perí­odo");
-    private RadioButton rbFiltraMarca = new RadioButton("Filtrar por Marca");
-    ;
-    private ToggleGroup filtroToggleGroup;
     private DatePicker dpFiltroPeriodo;
     private ComboBox<Marca> cbFiltroMarca;
     private VBox filtroContainer;
-
-    public BorderPane getRoot() {
-        return this.root;
-    }
 
     public MainView() {
         criarUI();
@@ -62,6 +54,10 @@ public class MainView {
             alert.showAndWait();
             root.setCenter(labelText); // Mantém a mensagem padrão em caso de erro
         }
+    }
+
+    public BorderPane getRoot() {
+        return this.root;
     }
 
     // Este é o método atualizarListaFaturas() que será usado para recarregar a lista
@@ -118,75 +114,116 @@ public class MainView {
 
     private void criarUI() {
         root = new BorderPane();
-        root.setStyle("-fx-background-color: #BDBDBD;");
-        root.getStylesheets().add(
-                getClass().getResource("styles.css").toExternalForm()
-        );
-        
-        VBox menuLateral = new VBox(20);
-        menuLateral.setPadding(new Insets(20));
-        menuLateral.setStyle("-fx-background-color: #323437; -fx-min-width: 250px;");
+        root.getStyleClass().add("main-root");
+        root.getStylesheets().add(getClass().getResource("styles.css").toExternalForm());
 
-        btnListarFaturas = criarBotao("Listar Faturas", "#C88200");
-        btnListarMarcas = criarBotao("Listar Marcas", "#C88200");
-        btnArquivadas = criarBotao("Arquivadas", "#C88200");
-        btnNovaFatura = criarBotao("Cadastrar Nota com Faturas", "#f0a818");
-        btnNovaMarca = criarBotao("Cadastrar nova marca", "#f0a818");
+        VBox menuLateral = new VBox();
+        menuLateral.getStyleClass().add("menu-lateral-root");
 
-        // O labelText foi declarado no início da classe e agora é inicializado aqui
+        btnListarFaturas = criarBotao("Listar Faturas", "/com/GuardouPagou/views/icons/list.png", "botao-listagem");
+        btnListarMarcas = criarBotao("Listar Marcas", "/com/GuardouPagou/views/icons/list.png", "botao-listagem");
+        btnArquivadas = criarBotao("Arquivadas", "/com/GuardouPagou/views/icons/archive.png", "botao-listagem");
+        btnNovaFatura = criarBotao("Cadastrar Faturas", "/com/GuardouPagou/views/icons/plus.png", "botao-cadastro");
+        btnNovaMarca = criarBotao("Cadastrar Marca", "/com/GuardouPagou/views/icons/plus.png", "botao-cadastro");
+
         labelText = new Label("Bem-vindo ao GuardouPagou");
         labelText.setFont(Font.font("Arial", FontWeight.BOLD, 18));
         labelText.setTextFill(Color.web("#000000"));
 
+        VBox secaoListagens = new VBox(
+                criarTitulo("Principais Listagens"),
+                btnListarFaturas,
+                btnListarMarcas,
+                btnArquivadas
+        );
+        secaoListagens.getStyleClass().add("menu-section");
+
+        VBox secaoCadastros = new VBox(
+                criarTitulo("Novos Cadastros"),
+                btnNovaFatura,
+                btnNovaMarca
+        );
+        secaoCadastros.getStyleClass().add("menu-section");
+
+        btnSalvarEmail = criarBotao("E-mails de Alerta", "/com/GuardouPagou/views/icons/campaing.png", "botao-listagem");
+        btnSalvarEmail.setPrefWidth(220);
+
+        VBox secaoOutros = new VBox(
+                criarTitulo("Outros"),
+                btnSalvarEmail
+        );
+        secaoOutros.getStyleClass().add("menu-section");
+
         menuLateral.getChildren().addAll(
                 criarLogo(),
-                criarTitulo("Principais listagens"),
-                btnListarFaturas, btnListarMarcas, btnArquivadas,
-                criarTitulo("Novos Cadastros"),
-                btnNovaFatura, btnNovaMarca,
-                criarEspaçoFlexível(),
-                criarEmailPanel()
-        );
+                criarSeparadorLogo(),
+                secaoListagens,
+                secaoCadastros,
+                secaoOutros,
+                criarEspaçoFlexível()
+                );
 
         root.setLeft(menuLateral);
         root.setCenter(labelText);
     }
 
-    private Button criarBotao(String texto, String cor) {
-        Button btn = new Button(texto);
+    private Button criarBotao(String texto, String iconPath, String cssClass) {
+        Button btn = new Button(" " + texto);
         btn.setMaxWidth(Double.MAX_VALUE);
-        btn.setStyle("-fx-background-color: " + cor + "; "
-                + "-fx-text-fill: #000000; "
-                + "-fx-font-weight: bold;");
+        btn.getStyleClass().addAll("menu-button", cssClass);
+
+        if (iconPath != null) {
+            try {
+                ImageView icon = new ImageView(getClass().getResource(iconPath).toExternalForm());
+                icon.setPreserveRatio(true);
+                btn.setGraphic(icon);
+            } catch (Exception e) {
+                System.err.println("Erro ao carregar ícone: " + iconPath);
+            }
+        }
+
+        btn.setOnMouseClicked(e -> btn.getParent().requestFocus());
+
         return btn;
     }
 
+
     private VBox criarLogo() {
         VBox logoContainer = new VBox();
-        logoContainer.setAlignment(Pos.CENTER);
-        logoContainer.setPadding(new Insets(0, 0, 20, 0));
-        logoContainer.setMinHeight(150);
+        logoContainer.setPadding(new Insets(10, 0, 5, 10));
+        logoContainer.setSpacing(0);
+        logoContainer.setAlignment(Pos.TOP_LEFT);
 
         try {
-            Image logoImage = new Image("file:logo.png");
+            // Apenas a logo
+            Image logoImage = new Image(getClass().getResource("/com/GuardouPagou/views/icons/G-Clock_home.png").toExternalForm());
             ImageView logoView = new ImageView(logoImage);
-            logoView.setFitWidth(180);
             logoView.setPreserveRatio(true);
+            logoView.setSmooth(true);
+            logoView.setCache(true);
+
             logoContainer.getChildren().add(logoView);
         } catch (Exception e) {
-            Label logoPlaceholder = new Label("LOGO DA LOJA");
-            logoPlaceholder.setFont(Font.font("Arial", FontWeight.BOLD, 18));
-            logoPlaceholder.setTextFill(Color.web("#f0a818"));
-            logoPlaceholder.setStyle("-fx-border-color: #C88200; -fx-border-width: 2px; -fx-padding: 40px;");
-            logoContainer.getChildren().add(logoPlaceholder);
+            Label fallback = new Label("LOGO");
+            fallback.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+            fallback.setTextFill(Color.web("#F0A818"));
+            logoContainer.getChildren().add(fallback);
         }
+
         return logoContainer;
+    }
+
+    private Region criarSeparadorLogo() {
+        Region linha = new Region();
+        linha.setPrefHeight(2);
+        linha.setMaxWidth(Double.MAX_VALUE);
+        linha.getStyleClass().add("logo-divider");
+        return linha;
     }
 
     private Label criarTitulo(String texto) {
         Label label = new Label(texto);
-        label.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        label.setTextFill(Color.web("#f0a818"));
+        label.getStyleClass().add("menu-subtitle");
         return label;
     }
 
@@ -196,30 +233,6 @@ public class MainView {
         return espaço;
     }
 
-    private VBox criarEmailPanel() {
-        VBox emailPanel = new VBox(10);
-        emailPanel.setPadding(new Insets(15));
-        emailPanel.setStyle("-fx-background-color: #3d4043; "
-                + "-fx-border-color: #C88200; "
-                + "-fx-border-radius: 5;");
-
-        Label emailTitle = new Label("Alertas por E-mail");
-        emailTitle.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        emailTitle.setTextFill(Color.web("#f0a818"));
-
-        emailField = new TextField();
-        emailField.setPromptText("Digite o e-mail para alertas");
-        emailField.setPrefWidth(200);
-        emailField.setStyle("-fx-prompt-text-fill: #BDBDBD;");
-
-        btnSalvarEmail = new Button("Salvar E-mail");
-        btnSalvarEmail.setStyle("-fx-background-color: #C88200; "
-                + "-fx-text-fill: #000000; "
-                + "-fx-font-weight: bold;");
-
-        emailPanel.getChildren().addAll(emailTitle, emailField, btnSalvarEmail);
-        return emailPanel;
-    }
 
     // MÉTODO mostrarListaMarcas - CORRIGIDO E ORIGINAL
     public void mostrarListaMarcas(ObservableList<Marca> marcas) {

@@ -63,7 +63,7 @@ public class MarcaDAO {
         return marcas;
     }
     
-        public int getNextId() throws SQLException {
+    public int getNextId() throws SQLException {
         String sql = "SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM marcas";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
@@ -73,5 +73,19 @@ public class MarcaDAO {
             }
             return 1;
         }
+    }
+
+    public Integer obterIdPorNome(String nome) throws SQLException {
+        String sql = "SELECT id FROM marcas WHERE nome = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, nome);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("id");
+                }
+            }
+        }
+        return null;
     }
 }
