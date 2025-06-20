@@ -75,7 +75,7 @@ public class FaturaDAO {
                 fatura.setNumeroFatura(rs.getInt("numero_fatura"));
                 fatura.setVencimento(rs.getDate("vencimento").toLocalDate());
                 fatura.setValor(rs.getDouble("valor"));
-                fatura.setStatus(rs.getString("status"));
+                fatura.setStatus(rs.getString("status")); // Usa o status original da fatura
                 fatura.setMarca(rs.getString("marca"));
                 faturas.add(fatura);
             }
@@ -119,8 +119,7 @@ public class FaturaDAO {
                 + "JOIN marcas m ON n.marca_id = m.id "
                 + "WHERE m.nome ILIKE ?";
 
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             // Permitir busca parcial ignorando maiúsculas/minúsculas
             stmt.setString(1, "%" + nomeMarca + "%");
@@ -174,5 +173,64 @@ public class FaturaDAO {
             }
         }
         return faturas;
+    }
+
+    public Fatura obterFaturaMaisProximaDoVencimentoNaoEmitida() throws SQLException {
+        Fatura faturaMaisProxima = null;
+        String sql = "SELECT f.id, f.nota_fiscal_id, n.numero_nota, f.numero_fatura, f.vencimento, f.valor, f.status, "
+                + "m.nome AS marca "
+                + "FROM faturas f "
+                + "JOIN notas_fiscais n ON f.nota_fiscal_id = n.id "
+                + "LEFT JOIN marcas m ON n.marca_id = m.id "
+                + "WHERE f.status = 'Não Emitida' "
+                + "ORDER BY f.vencimento ASC, f.id ASC "
+                + "LIMIT 1";
+
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery()) {
+
+            if (rs.next()) {
+                faturaMaisProxima = new Fatura();
+                faturaMaisProxima.setId(rs.getInt("id"));
+                faturaMaisProxima.setNotaFiscalId(rs.getInt("nota_fiscal_id"));
+                faturaMaisProxima.setNumeroNota(rs.getString("numero_nota"));
+                faturaMaisProxima.setNumeroFatura(rs.getInt("numero_fatura"));
+                faturaMaisProxima.setVencimento(rs.getDate("vencimento").toLocalDate());
+                faturaMaisProxima.setValor(rs.getDouble("valor"));
+                faturaMaisProxima.setStatus(rs.getString("status"));
+                faturaMaisProxima.setMarca(rs.getString("marca"));
+            }
+        }
+        return faturaMaisProxima;
+    }
+
+    // NOVO MÉTODO: Obter a próxima fatura não emitida de uma NOTA FISCAL ESPECÍFICA
+    public Fatura obterProximaFaturaNaoEmitidaDaMesmaNota(int notaFiscalId) throws SQLException {
+        Fatura proximaFatura = null;
+        String sql = "SELECT f.id, f.nota_fiscal_id, n.numero_nota, f.numero_fatura, f.vencimento, f.valor, f.status, "
+                + "m.nome AS marca "
+                + "FROM faturas f "
+                + "JOIN notas_fiscais n ON f.nota_fiscal_id = n.id "
+                + "LEFT JOIN marcas m ON n.marca_id = m.id "
+                + "WHERE f.nota_fiscal_id = ? AND f.status = 'Não Emitida' "
+                + "ORDER BY f.vencimento ASC, f.id ASC "
+                + "LIMIT 1";
+
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, notaFiscalId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    proximaFatura = new Fatura();
+                    proximaFatura.setId(rs.getInt("id"));
+                    proximaFatura.setNotaFiscalId(rs.getInt("nota_fiscal_id"));
+                    proximaFatura.setNumeroNota(rs.getString("numero_nota"));
+                    proximaFatura.setNumeroFatura(rs.getInt("numero_fatura"));
+                    proximaFatura.setVencimento(rs.getDate("vencimento").toLocalDate());
+                    proximaFatura.setValor(rs.getDouble("valor"));
+                    proximaFatura.setStatus(rs.getString("status"));
+                    proximaFatura.setMarca(rs.getString("marca"));
+                }
+            }
+        }
+        return proximaFatura;
     }
 }
