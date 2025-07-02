@@ -8,8 +8,10 @@ import com.GuardouPagou.models.Fatura;
 import com.GuardouPagou.models.NotaFiscal;
 import com.GuardouPagou.views.NotaFaturaView;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -27,42 +29,52 @@ public class NotaFaturaController {
     private final NotaFiscalDAO notaFiscalDAO;
     private final FaturaDAO faturaDAO;
     private final MarcaDAO marcaDAO;
+    private NotaFiscal notaFiscalEmEdicao;
 
-    // formatação de data pt-BR
     private final DateTimeFormatter formatter
             = DateTimeFormatter.ofPattern("dd/MM/yyyy", new Locale("pt", "BR"));
 
-    // constantes para máscara de moeda
     private static final Locale PT_BR = new Locale("pt", "BR");
     private static final NumberFormat CURRENCY_FORMAT
             = NumberFormat.getCurrencyInstance(PT_BR);
 
-    // listas dinâmicas de campos
-    private final List<DatePicker> vencimentoPickers = new ArrayList<>();
-    private final List<TextField> valorFields = new ArrayList<>();
 
+    // Construtor para MODO CADASTRO
     public NotaFaturaController(NotaFaturaView view) {
         this.view = view;
         this.notaFiscalDAO = new NotaFiscalDAO();
         this.faturaDAO = new FaturaDAO();
         this.marcaDAO = new MarcaDAO();
+        this.notaFiscalEmEdicao = null;
 
+        // A view já inicializa os campos no construtor padrão
         configurarEventos();
         carregarMarcas();
-        inicializarFaturas(view.getSpinnerFaturas().getValue());
     }
 
+    // Construtor para MODO EDIÇÃO
+    public NotaFaturaController(NotaFaturaView view, NotaFiscal notaFiscal, ObservableList<Fatura> faturas) {
+        this.view = view;
+        this.notaFiscalDAO = new NotaFiscalDAO();
+        this.faturaDAO = new FaturaDAO();
+        this.marcaDAO = new MarcaDAO();
+        this.notaFiscalEmEdicao = notaFiscal;
+
+        // A view já inicializa os campos no construtor de edição
+        configurarEventos();
+        carregarMarcas();
+    }
+
+
     private void configurarEventos() {
-        // só dígitos no nº da nota
         view.getNumeroNotaField().textProperty().addListener((obs, oldVal, newVal) -> {
             if (!newVal.matches("\\d*")) {
                 view.getNumeroNotaField().setText(newVal.replaceAll("[^\\d]", ""));
             }
         });
 
-        // recria campos ao mudar nº de faturas
         view.getSpinnerFaturas().valueProperty()
-                .addListener((obs, o, n) -> inicializarFaturas(n));
+                .addListener((obs, o, n) -> view.inicializarFaturas(n)); // Chama o método na view
 
         view.getBtnLimpar().setOnAction(e -> limparFormulario());
         view.getBtnGravar().setOnAction(e -> salvarNotaFiscal());
@@ -81,130 +93,126 @@ public class NotaFaturaController {
         }
     }
 
+    // ESTE MÉTODO AGORA ESTÁ NA VIEW, NÃO MAIS AQUI NO CONTROLLER
+    /*
     private void inicializarFaturas(int quantidade) {
-        vencimentoPickers.clear();
-        valorFields.clear();
-        view.getVencimentosColumn().getChildren().clear();
-        view.getValoresColumn().getChildren().clear();
-
-        for (int i = 1; i <= quantidade; i++) {
-            // — VENCIMENTO —
-            VBox vbV = new VBox(5);
-            vbV.getStyleClass().add("pill-field");
-            Label lblV = new Label("Vencimento Fatura " + i + ":");
-            lblV.getStyleClass().add("field-subtitle");
-
-            DatePicker dp = new DatePicker();
-            dp.setPromptText("DD/MM/AAAA");
-            dp.setPrefWidth(150);
-            dp.setConverter(new javafx.util.StringConverter<LocalDate>() {
-                @Override
-                public String toString(LocalDate d) {
-                    return d == null ? "" : formatter.format(d);
-                }
-
-                @Override
-                public LocalDate fromString(String s) {
-                    try {
-                        return (s == null || s.isBlank())
-                                ? null
-                                : LocalDate.parse(s, formatter);
-                    } catch (Exception ex) {
-                        return null;
-                    }
-                }
-            });
-
-            vbV.getChildren().addAll(lblV, dp);
-            view.getVencimentosColumn().getChildren().add(vbV);
-            vencimentoPickers.add(dp);
-
-            // — VALOR —
-            VBox vbVal = new VBox(5);
-            vbVal.getStyleClass().add("pill-field");
-            Label lblVal = new Label("Valor Fatura " + i + ":");
-            lblVal.getStyleClass().add("field-subtitle");
-
-            TextField tf = new TextField();
-            tf.setPrefWidth(150);
-            // inicia em R$ 0,00
-            tf.setText(CURRENCY_FORMAT.format(BigDecimal.ZERO));
-
-            // listener para formatar em tempo real
-            final boolean[] updating = {false};
-            tf.textProperty().addListener((obs, oldText, newText) -> {
-                if (updating[0]) {
-                    return;
-                }
-                updating[0] = true;
-
-                String digits = newText.replaceAll("\\D", "");
-                long cents = digits.isEmpty() ? 0L : Long.parseLong(digits);
-                BigDecimal value = BigDecimal.valueOf(cents, 2);
-
-                String formatted = CURRENCY_FORMAT.format(value);
-                tf.setText(formatted);
-                tf.positionCaret(formatted.length());
-
-                updating[0] = false;
-            });
-
-            vbVal.getChildren().addAll(lblVal, tf);
-            view.getValoresColumn().getChildren().add(vbVal);
-            valorFields.add(tf);
-        }
+        // ... (conteúdo do método movido para NotaFaturaView) ...
     }
+    */
 
     private void salvarNotaFiscal() {
         String numNota = view.getNumeroNotaField().getText().trim();
         LocalDate data = view.getDataEmissaoPicker().getValue();
-        String marca = view.getMarcaComboBox().getValue();
-        if (numNota.isEmpty() || data == null || marca == null || vencimentoPickers.isEmpty()) {
-            mostrarAlerta("Erro ao cadastrar, verifique os campos!", Alert.AlertType.ERROR);
+        String marcaNome = view.getMarcaComboBox().getValue();
+
+        if (numNota.isEmpty() || data == null || marcaNome == null || view.getVencimentosColumn().getChildren().isEmpty()) {
+            mostrarAlerta("Erro ao salvar, verifique os campos obrigatórios!", Alert.AlertType.ERROR);
             return;
         }
 
-        for (int i = 0; i < vencimentoPickers.size(); i++) {
-            LocalDate venc = vencimentoPickers.get(i).getValue();
-            String valTxt = valorFields.get(i).getText().trim();
-            if (venc == null || venc.isBefore(data) || valTxt.isEmpty()) {
-                mostrarAlerta("Erro ao cadastrar, verifique os campos!", Alert.AlertType.ERROR);
+        List<Fatura> faturasColetadas = new ArrayList<>();
+        for (int i = 0; i < view.getSpinnerFaturas().getValue(); i++) {
+            VBox vencBox = (VBox) view.getVencimentosColumn().getChildren().get(i);
+            VBox valBox = (VBox) view.getValoresColumn().getChildren().get(i);
+            VBox statusBox = (VBox) view.getStatusColumn().getChildren().get(i);
+
+            DatePicker vencDp = (DatePicker) vencBox.getChildren().get(1);
+            TextField valTf = (TextField) valBox.getChildren().get(1);
+            ComboBox<String> statusCb = (ComboBox<String>) statusBox.getChildren().get(1);
+
+            LocalDate venc = vencDp.getValue();
+            String valTxt = valTf.getText().trim();
+            String status = statusCb.getValue();
+
+            if (venc == null || venc.isBefore(data) || valTxt.isEmpty() || status == null) {
+                mostrarAlerta("Erro ao salvar, verifique todos os campos das faturas!", Alert.AlertType.ERROR);
+                return;
+            }
+
+            try {
+                String cleanVal = valTxt.replaceAll("[^\\d,]", "").replace(",", ".");
+                double valor = Double.parseDouble(cleanVal);
+                
+                Fatura fatura = new Fatura();
+                fatura.setNumeroFatura(i + 1);
+                fatura.setVencimento(venc);
+                fatura.setValor(valor);
+                fatura.setStatus(status);
+                
+                if (valTf.getUserData() instanceof Integer) {
+                    fatura.setId((Integer) valTf.getUserData());
+                }
+
+                faturasColetadas.add(fatura);
+
+            } catch (NumberFormatException e) {
+                mostrarAlerta("Valor da fatura inválido!", Alert.AlertType.ERROR);
                 return;
             }
         }
 
-        try (var conn = DatabaseConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            NotaFiscal nf = new NotaFiscal(numNota, data, marca, new ArrayList<>());
-            int nfId = notaFiscalDAO.inserirNotaFiscal(nf);
-
-            List<Fatura> lista = new ArrayList<>();
-            for (int i = 0; i < vencimentoPickers.size(); i++) {
-                LocalDate venc = vencimentoPickers.get(i).getValue();
-                String text = valorFields.get(i).getText();
-                // remove tudo que não for dígito ou vírgula, e normaliza o decimal
-                String clean = text
-                        .replaceAll("[^\\d,]", "") // mantém só dígitos e vírgulas
-                        .replace(",", ".");         // converte vírgula em ponto
-
-                double valor = Double.parseDouble(clean);
-                lista.add(new Fatura(
-                        /* nº da fatura */i + 1,
-                        /* vencimento  */ venc,
-                        /* valor       */ valor,
-                        /* status      */ "Não Emitida"
-                ));
+        try {
+            if (notaFiscalEmEdicao == null) {
+                if (notaFiscalDAO.existeNotaFiscal(numNota)) {
+                    mostrarAlerta("Erro: Já existe uma Nota Fiscal com este número!", Alert.AlertType.ERROR);
+                    return;
+                }
+            } else {
+                if (notaFiscalDAO.existeNotaFiscalComOutroId(numNota, notaFiscalEmEdicao.getId())) {
+                    mostrarAlerta("Erro: Já existe outra Nota Fiscal com este número!", Alert.AlertType.ERROR);
+                    return;
+                }
             }
-            faturaDAO.inserirFaturas(lista, nfId);
-            conn.commit();
+        } catch (SQLException e) {
+            mostrarAlerta("Erro ao verificar número da Nota Fiscal: " + e.getMessage(), Alert.AlertType.ERROR);
+            e.printStackTrace();
+            return;
+        }
 
-            mostrarAlerta("Faturas cadastradas com sucesso!", Alert.AlertType.INFORMATION);
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+
+            NotaFiscal nf = new NotaFiscal(numNota, data, marcaNome, faturasColetadas);
+            nf.setId(view.getNotaFiscalIdParaEdicao());
+
+            int notaFiscalId = nf.getId();
+
+            if (notaFiscalEmEdicao == null) {
+                notaFiscalId = notaFiscalDAO.inserirNotaFiscal(nf);
+                if (notaFiscalId == -1) {
+                    throw new SQLException("Erro ao inserir Nota Fiscal.");
+                }
+                nf.setId(notaFiscalId);
+                faturaDAO.inserirFaturas(faturasColetadas, nf.getId());
+
+                mostrarAlerta("Nota Fiscal cadastrada com sucesso!", Alert.AlertType.INFORMATION);
+
+            } else {
+                if (!notaFiscalDAO.atualizarNotaFiscal(nf)) {
+                    throw new SQLException("Erro ao atualizar Nota Fiscal.");
+                }
+
+                faturaDAO.excluirFaturasPorNotaFiscalId(nf.getId());
+                for(Fatura fatura : faturasColetadas) {
+                    fatura.setNotaFiscalId(nf.getId());
+                    faturaDAO.inserirFatura(fatura);
+                }
+                mostrarAlerta("Nota Fiscal atualizada com sucesso!", Alert.AlertType.INFORMATION);
+            }
+
+            conn.commit();
             limparFormulario();
+            Stage stage = (Stage) view.getRoot().getScene().getWindow();
+            stage.close();
 
         } catch (Exception e) {
             mostrarAlerta("Erro ao salvar nota fiscal: " + e.getMessage(), Alert.AlertType.ERROR);
+            e.printStackTrace();
             try {
-                DatabaseConnection.getConnection().rollback();
+                Connection conn = DatabaseConnection.getConnection();
+                if (conn != null && !conn.getAutoCommit()) {
+                    conn.rollback();
+                }
             } catch (SQLException ex) {
                 ex.printStackTrace();
             }
@@ -217,11 +225,7 @@ public class NotaFaturaController {
         view.getMarcaComboBox().setValue(null);
         view.getSpinnerFaturas().getValueFactory().setValue(1);
 
-        vencimentoPickers.clear();
-        valorFields.clear();
-        view.getVencimentosColumn().getChildren().clear();
-        view.getValoresColumn().getChildren().clear();
-        inicializarFaturas(1);
+        view.inicializarFaturas(1); // Chama o método na view
     }
 
     private void mostrarAlerta(String msg, Alert.AlertType tipo) {

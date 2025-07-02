@@ -6,6 +6,9 @@ import com.GuardouPagou.dao.MarcaDAO;
 import com.GuardouPagou.dao.NotaFiscalDAO;
 import com.GuardouPagou.models.Fatura;
 import com.GuardouPagou.models.Marca;
+import com.GuardouPagou.models.NotaFiscal; // Importe NotaFiscal
+import com.GuardouPagou.controllers.NotaFaturaController; // Importe NotaFaturaController
+import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -18,6 +21,14 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.stage.Modality; // Importe Modality
+import javafx.stage.Stage;    // Importe Stage
+import javafx.stage.Window;   // Importe Window
+import javafx.scene.Scene;      
+import javafx.stage.Stage;    
+import javafx.stage.Modality;   
+import javafx.stage.Window;     
+import java.util.Objects;       
 
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -26,13 +37,13 @@ import java.util.Optional;
 
 public class MainView {
 
-    private final RadioButton rbFiltraPeriodo = new RadioButton("Filtrar por Perí­odo");
+    private final RadioButton rbFiltraPeriodo = new RadioButton("Filtrar por Período");
     private final RadioButton rbFiltraMarca = new RadioButton("Filtrar por Marca");
     private final ToggleGroup filtroToggleGroup;
     private BorderPane root;
     private Button btnListarFaturas, btnListarMarcas, btnArquivadas;
     private Button btnNovaFatura, btnNovaMarca, btnSalvarEmail;
-    private Label labelText; // Alterado de conteudoLabel para labelText para corresponder ao uso em criarUI
+    private Label labelText;
     private TextField emailField;
     private DatePicker dpFiltroPeriodo;
     private ComboBox<Marca> cbFiltroMarca;
@@ -42,9 +53,14 @@ public class MainView {
         criarUI();
         filtroToggleGroup = new ToggleGroup();
         try {
-            // Mudar de new FaturaDAO().listarFaturas() para:
-            ObservableList<Fatura> faturas = new FaturaDAO().listarFaturas(false); // Listar apenas não arquivadas
-            mostrarListaFaturas(faturas);
+            Fatura faturaMaisProxima = new FaturaDAO().obterFaturaMaisProximaDoVencimentoNaoEmitida();
+            ObservableList<Fatura> faturasParaExibir = FXCollections.observableArrayList();
+
+            if (faturaMaisProxima != null) {
+                faturasParaExibir.add(faturaMaisProxima);
+            }
+            mostrarListaFaturas(faturasParaExibir);
+
         } catch (SQLException ex) {
             ex.printStackTrace();
             Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -52,7 +68,7 @@ public class MainView {
             alert.setHeaderText(null);
             alert.setContentText("Erro ao carregar faturas na inicialização: " + ex.getMessage());
             alert.showAndWait();
-            root.setCenter(labelText); // Mantém a mensagem padrão em caso de erro
+            root.setCenter(labelText);
         }
     }
 
@@ -60,20 +76,21 @@ public class MainView {
         return this.root;
     }
 
-    // Este é o método atualizarListaFaturas() que será usado para recarregar a lista
     private void atualizarListaFaturas() {
         try {
-            // Mudar de new FaturaDAO().listarFaturas() para:
-            ObservableList<Fatura> faturas;
+            ObservableList<Fatura> faturasParaExibir = FXCollections.observableArrayList();
+            FaturaDAO faturaDAO = new FaturaDAO();
+
             if (rbFiltraPeriodo.isSelected()) {
                 LocalDate dataSelecionada = dpFiltroPeriodo.getValue();
                 if (dataSelecionada != null) {
                     System.out.println("Atualizando lista por período: " + dataSelecionada);
-                    // por Periodo
-                    faturas = new FaturaDAO().listarFaturasPorPeriodo(dataSelecionada);
-
+                    faturasParaExibir.setAll(faturaDAO.listarFaturasPorPeriodo(dataSelecionada));
                 } else {
-                    faturas = new FaturaDAO().listarFaturas(false);
+                    Fatura faturaMaisProxima = faturaDAO.obterFaturaMaisProximaDoVencimentoNaoEmitida();
+                    if (faturaMaisProxima != null) {
+                        faturasParaExibir.add(faturaMaisProxima);
+                    }
                     Alert alert = new Alert(Alert.AlertType.WARNING);
                     alert.setTitle("Atencao");
                     alert.setHeaderText(null);
@@ -87,10 +104,12 @@ public class MainView {
 
                 if (marcaSelecionada != null && !marcaSelecionada.isEmpty()) {
                     System.out.println("Atualizando lista por marca: " + marcaSelecionada);
-                    // Por Marca
-                    faturas = new FaturaDAO().listarFaturasPorMarca(marcaSelecionada);
+                    faturasParaExibir.setAll(faturaDAO.listarFaturasPorMarca(marcaSelecionada));
                 } else {
-                    faturas = new FaturaDAO().listarFaturas(false);
+                    Fatura faturaMaisProxima = faturaDAO.obterFaturaMaisProximaDoVencimentoNaoEmitida();
+                    if (faturaMaisProxima != null) {
+                        faturasParaExibir.add(faturaMaisProxima);
+                    }
                     Alert alert = new Alert(Alert.AlertType.WARNING);
                     alert.setTitle("Atenção");
                     alert.setHeaderText(null);
@@ -98,10 +117,12 @@ public class MainView {
                     alert.showAndWait();
                 }
             } else {
-                faturas = new FaturaDAO().listarFaturas(false);
-                //faturas = new FaturaDAO().listarFaturas();
+                Fatura faturaMaisProxima = faturaDAO.obterFaturaMaisProximaDoVencimentoNaoEmitida();
+                if (faturaMaisProxima != null) {
+                    faturasParaExibir.add(faturaMaisProxima);
+                }
             }
-            mostrarListaFaturas(faturas);
+            mostrarListaFaturas(faturasParaExibir);
         } catch (SQLException ex) {
             ex.printStackTrace();
             Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -161,9 +182,8 @@ public class MainView {
                 secaoCadastros,
                 secaoOutros,
                 criarEspaçoFlexível()
-                );
+        );
 
-        // Remove o deslocamento da barra lateral
         btnListarFaturas.setFocusTraversable(false);
         btnListarMarcas.setFocusTraversable(false);
         btnArquivadas.setFocusTraversable(false);
@@ -195,7 +215,6 @@ public class MainView {
         return btn;
     }
 
-
     private VBox criarLogo() {
         VBox logoContainer = new VBox();
         logoContainer.setPadding(new Insets(10, 0, 5, 10));
@@ -203,7 +222,6 @@ public class MainView {
         logoContainer.setAlignment(Pos.TOP_LEFT);
 
         try {
-            // Apenas a logo
             Image logoImage = new Image(getClass().getResource("/icons/G-Clock_home.png").toExternalForm());
             ImageView logoView = new ImageView(logoImage);
             logoView.setPreserveRatio(true);
@@ -241,8 +259,6 @@ public class MainView {
         return espaço;
     }
 
-
-    // MÉTODO mostrarListaMarcas - CORRIGIDO E ORIGINAL
     public void mostrarListaMarcas(ObservableList<Marca> marcas) {
         TableView<Marca> tabela = new TableView<>();
         tabela.setStyle("-fx-border-color: #4A4A4A; -fx-border-width: 1; -fx-background-radius: 5; -fx-border-radius: 5;");
@@ -253,7 +269,7 @@ public class MainView {
         colunaId.setCellValueFactory(new PropertyValueFactory<>("id"));
         colunaId.setCellFactory(column -> new TableCell<Marca, Integer>() {
             @Override
-            protected void updateItem(Integer id, boolean empty) { // CORRIGIDO: Tipo Integer e lógica original
+            protected void updateItem(Integer id, boolean empty) {
                 super.updateItem(id, empty);
                 if (empty || id == null) {
                     setText(null);
@@ -319,38 +335,7 @@ public class MainView {
         });
         colunaDescricao.setPrefWidth(250);
 
-        /*Coluna Ação removida para ocultar o botão Excluir
-        
-        TableColumn<Marca, Void> colunaAcoes = new TableColumn<>("Ação");
-        colunaAcoes.setCellFactory(column -> new TableCell<Marca, Void>() {
-            private final Button btnExcluir = new Button("Excluir");
-
-            {
-                btnExcluir.setStyle("-fx-background-color: #F44336; -fx-text-fill: white; -fx-font-size: 12px; -fx-padding: 5px;");
-                btnExcluir.setOnAction(e -> {
-                    Marca marca = getTableView().getItems().get(getIndex());
-                    excluirMarca(marca);
-                });
-            }
-
-            @Override
-            protected void updateItem(Void item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty) {
-                    setGraphic(null);
-                } else {
-                    HBox botoes = new HBox(5, btnEditar, btnExcluir);
-                    botoes.setAlignment(Pos.CENTER);
-                    setGraphic(botoes);
-                }
-            }
-        });
-        colunaAcoes.setPrefWidth(150);
-*/
-        
-        
-
-        tabela.getColumns().addAll(colunaId, colunaNome, colunaDescricao); //colunaAcoes); // Adicionando coluna Ações
+        tabela.getColumns().addAll(colunaId, colunaNome, colunaDescricao);
         tabela.setItems(marcas);
 
         VBox container = new VBox(20);
@@ -377,31 +362,13 @@ public class MainView {
         btnNovaMarca.setOnAction(e -> mostrarFormularioMarca());
     }
 
-    // MÉTODO mostrarListaFaturas - ADICIONADO E CORRIGIDO
     public void mostrarListaFaturas(ObservableList<Fatura> faturas) {
         TableView<Fatura> tabela = new TableView<>();
         tabela.setStyle("-fx-border-color: #4A4A4A; -fx-border-width: 1; -fx-background-radius: 5; -fx-border-radius: 5;");
         tabela.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         tabela.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
 
-        TableColumn<Fatura, Integer> colunaId = new TableColumn<>("ID");
-        colunaId.setCellValueFactory(new PropertyValueFactory<>("id"));
-        colunaId.setCellFactory(column -> new TableCell<Fatura, Integer>() {
-            @Override
-            protected void updateItem(Integer id, boolean empty) {
-                super.updateItem(id, empty);
-                if (empty || id == null) {
-                    setText(null);
-                    setStyle("");
-                } else {
-                    setText(id.toString());
-                    setStyle("-fx-text-fill: #000000; -fx-background-color: transparent; -fx-font-weight: bold; -fx-border-color: #ffffff; -fx-border-width: 0.5; -fx-alignment: CENTER-LEFT;");
-                }
-            }
-        });
-        colunaId.setPrefWidth(80);
-
-        TableColumn<Fatura, String> colunaNumeroNota = new TableColumn<>("NÚMERO DA NOTA");
+        TableColumn<Fatura, String> colunaNumeroNota = new TableColumn<>("Nº NOTA FISCAL");
         colunaNumeroNota.setCellValueFactory(new PropertyValueFactory<>("numeroNota"));
         colunaNumeroNota.setCellFactory(column -> new TableCell<Fatura, String>() {
             @Override
@@ -435,7 +402,7 @@ public class MainView {
         });
         colunaOrdem.setPrefWidth(120);
 
-        TableColumn<Fatura, LocalDate> colunaVencimento = new TableColumn<>("VENCIMENTO");
+        TableColumn<Fatura, LocalDate> colunaVencimento = new TableColumn<>("DATA DE VENCIMENTO");
         colunaVencimento.setCellValueFactory(new PropertyValueFactory<>("vencimento"));
         colunaVencimento.setCellFactory(column -> new TableCell<Fatura, LocalDate>() {
             private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -465,13 +432,13 @@ public class MainView {
                     setStyle("");
                 } else {
                     setText(marca);
-                    setStyle("-fx-text-fill: #000000; -fx-background-color: transparent; -fx-font-weight: bold; -fx-border-color: #ffffff; -fx-border-width: 0.5; -fx-alignment: CENTER-LEFT;");
+                    setStyle("-fx-text-fill: #000000; -fx-background-color: transparent; -fx-font-weight: bold; -fx-border-color: #4A4A4A; -fx-border-width: 0.5; -fx-alignment: CENTER-LEFT;");
                 }
             }
         });
         colunaMarca.setPrefWidth(150);
 
-        TableColumn<Fatura, String> colunaStatus = new TableColumn<>("STATUS");
+        TableColumn<Fatura, String> colunaStatus = new TableColumn<>("STATUS DA FATURA");
         colunaStatus.setCellValueFactory(new PropertyValueFactory<>("status"));
         colunaStatus.setCellFactory(column -> new TableCell<Fatura, String>() {
             @Override
@@ -492,16 +459,26 @@ public class MainView {
         });
         colunaStatus.setPrefWidth(120);
 
-        // INÍCIO DA ADIÇÃO DA NOVA COLUNA E LÓGICA
         TableColumn<Fatura, Void> colunaAcoes = new TableColumn<>("Ações");
+        colunaAcoes.setPrefWidth(200); // Ajusta a largura para acomodar os dois botões
         colunaAcoes.setCellFactory(param -> new TableCell<Fatura, Void>() {
             private final Button btnEmitida = new Button("Emitida");
+            private final Button btnEditar = new Button("Editar"); // NOVO BOTÃO DE EDIÇÃO
 
             {
-                btnEmitida.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-size: 12px; -fx-padding: 5px;");
+                // Estilo para o botão Emitida
+                btnEmitida.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-size: 12px; -fx-padding: 5px; -fx-background-radius: 3;");
                 btnEmitida.setOnAction(event -> {
                     Fatura fatura = getTableView().getItems().get(getIndex());
                     marcarFaturaComoEmitida(fatura);
+                });
+
+                // Estilo para o botão Editar
+                btnEditar.setStyle("-fx-background-color: #007BFF; -fx-text-fill: white; -fx-font-size: 12px; -fx-padding: 5px; -fx-background-radius: 3;");
+                btnEditar.setOnAction(event -> {
+                    Fatura fatura = getTableView().getItems().get(getIndex());
+                    // Chama o método para abrir a modal de edição
+                    abrirModalEdicao(fatura.getNotaFiscalId());
                 });
             }
 
@@ -511,24 +488,44 @@ public class MainView {
                 if (empty) {
                     setGraphic(null);
                 } else {
-                    // Oculta o botão se a fatura já estiver arquivada ou emitida (status "Emitida" ou "Vencida")
                     Fatura fatura = getTableView().getItems().get(getIndex());
-                    if ("Emitida".equalsIgnoreCase(fatura.getStatus()) || "Vencida".equalsIgnoreCase(fatura.getStatus())) {
-                        setGraphic(null); // Oculta o botão
-                    } else {
-                        HBox buttonContainer = new HBox(btnEmitida);
-                        buttonContainer.setAlignment(Pos.CENTER);
-                        setGraphic(buttonContainer);
+
+                    HBox buttonContainer = new HBox(5); // Espaçamento entre os botões
+                    buttonContainer.setAlignment(Pos.CENTER);
+
+                    // Condição para mostrar/ocultar o botão Emitida
+                    if (!"Emitida".equalsIgnoreCase(fatura.getStatus()) && !"Vencida".equalsIgnoreCase(fatura.getStatus())) {
+                        buttonContainer.getChildren().add(btnEmitida);
                     }
+
+                    // Condição para mostrar/ocultar o botão Editar (apenas para notas não arquivadas)
+                    // Precisamos buscar o status de arquivamento da NotaFiscal
+                    try {
+                        NotaFiscalDAO notaFiscalDAO = new NotaFiscalDAO();
+                        // Aqui precisamos de um método para obter a NF e seu status de arquivamento
+                        // Fatura já tem o notaFiscalId, mas não se a NF está arquivada.
+                        // Poderíamos adicionar `boolean arquivada` ao modelo Fatura, ou buscar aqui.
+                        // Para evitar chamadas de DB pesadas na UI, idealmente o arquivada viria na Fatura
+                        // Por simplicidade, vamos buscar a NotaFiscal aqui (pode impactar performance em grandes listas)
+                        NotaFiscal nfAssociada = notaFiscalDAO.obterNotaFiscalPorId(fatura.getNotaFiscalId());
+                        if (nfAssociada != null && !nfAssociada.isArquivada()) { // Assume que NotaFiscal tem isArquivada()
+                            buttonContainer.getChildren().add(btnEditar);
+                        } else {
+                            // Se estiver arquivada, o botão editar não aparece
+                            // Ou se nfAssociada for null (erro ao buscar), também não aparece
+                        }
+                    } catch (SQLException e) {
+                        System.err.println("Erro ao verificar status de arquivamento para edição: " + e.getMessage());
+                        // Em caso de erro, não mostra o botão para evitar edição em estado incerto
+                    }
+
+                    setGraphic(buttonContainer);
                 }
             }
         });
-        colunaAcoes.setPrefWidth(100); // Ajuste a largura conforme necessário
 
-        // Adicione a nova coluna aqui
-        tabela.getColumns().addAll(colunaId, colunaNumeroNota, colunaOrdem, colunaVencimento, colunaMarca, colunaStatus, colunaAcoes);
+        tabela.getColumns().addAll(colunaNumeroNota, colunaOrdem, colunaVencimento, colunaMarca, colunaStatus, colunaAcoes);
         tabela.setItems(faturas);
-        // FIM DA ADIÇÃO DA NOVA COLUNA E LÓGICA
 
         VBox container = new VBox(20);
         container.setPadding(new Insets(20));
@@ -541,21 +538,19 @@ public class MainView {
         Button btnAtualizar = new Button("Atualizar");
         btnAtualizar.setStyle("-fx-background-color: #C88200; -fx-text-fill: #000000; -fx-font-weight: bold;");
 
-        // --- filtros - RADIOBUTTONS E TOGGLEGROUP ---
         rbFiltraPeriodo.setToggleGroup(filtroToggleGroup);
         rbFiltraPeriodo.setStyle("-fx-text-fill: #000000;");
 
         rbFiltraMarca.setToggleGroup(filtroToggleGroup);
         rbFiltraMarca.setStyle("-fx-text-fill: #000000;");
 
-        // Inicializa o DatePicker e ComboBox AQUI
         if (dpFiltroPeriodo == null) {
             dpFiltroPeriodo = new DatePicker();
             dpFiltroPeriodo.setPromptText("Selecione a data");
             dpFiltroPeriodo.setStyle("-fx-background-color: #FFFFFF; -fx-text-fill: #000000;");
             dpFiltroPeriodo.setPrefWidth(200);
             dpFiltroPeriodo.setVisible(false);
-            dpFiltroPeriodo.setManaged(false); // Não ocupa espaço quando invisível
+            dpFiltroPeriodo.setManaged(false);
         }
 
         if (cbFiltroMarca == null) {
@@ -564,7 +559,7 @@ public class MainView {
             cbFiltroMarca.setStyle("-fx-background-color: #FFFFFF; -fx-text-fill: #000000;");
             cbFiltroMarca.setPrefWidth(200);
             cbFiltroMarca.setVisible(false);
-            cbFiltroMarca.setManaged(false); // Nao ocupa espaco quando invisivel
+            cbFiltroMarca.setManaged(false);
 
             try {
                 ObservableList<Marca> marcas = new MarcaDAO().listarMarcas();
@@ -598,7 +593,6 @@ public class MainView {
         toolbar.getChildren().clear();
         toolbar.getChildren().addAll(rbFiltraPeriodo, rbFiltraMarca, btnAtualizar);
         toolbar.setSpacing(15);
-        // --- FIM DA ADIÇÃO DOS RADIOBUTTONS E TOGGLEGROUP ---
         toolbar.setAlignment(Pos.CENTER_RIGHT);
 
         container.getChildren().addAll(titulo, toolbar, filtroContainer, tabela);
@@ -606,7 +600,6 @@ public class MainView {
 
         btnAtualizar.setOnAction(e -> atualizarListaFaturas());
 
-        // Adiciona os listeners para os RadioButtons e o botão de atualização apenas uma vez
         if (rbFiltraPeriodo.getOnAction() == null) {
             btnAtualizar.setOnAction(e -> atualizarListaFaturas());
 
@@ -640,7 +633,6 @@ public class MainView {
         }
     }
 
-    // MÉTODO marcarFaturaComoEmitida - ADICIONADO
     private void marcarFaturaComoEmitida(Fatura fatura) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Confirmação");
@@ -650,18 +642,14 @@ public class MainView {
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
             try {
-                // 1. Marcar a fatura individual como 'Emitida' no banco de dados
-                // NOTA: 'marcarFaturaIndividualComoEmitida' e 'todasFaturasDaNotaEmitidas'
-                // devem existir ou ser implementados em FaturaDAO.java
-                boolean faturaMarcada = new FaturaDAO().marcarFaturaIndividualComoEmitida(fatura.getId());
+                FaturaDAO faturaDAO = new FaturaDAO();
+
+                boolean faturaMarcada = faturaDAO.marcarFaturaIndividualComoEmitida(fatura.getId());
 
                 if (faturaMarcada) {
-                    // 2. Verificar se TODAS as faturas desta nota fiscal estão agora 'Emitida'
-                    boolean todasEmitidas = new FaturaDAO().todasFaturasDaNotaEmitidas(fatura.getNotaFiscalId());
+                    boolean todasEmitidasNaNota = faturaDAO.todasFaturasDaNotaEmitidas(fatura.getNotaFiscalId());
 
-                    if (todasEmitidas) {
-                        // Se todas as faturas da Nota Fiscal estão emitidas, marcar a Nota Fiscal como arquivada
-                        // NOTA: 'marcarComoArquivada' deve existir ou ser implementado em NotaFiscalDAO.java
+                    if (todasEmitidasNaNota) {
                         boolean notaFiscalArquivada = new NotaFiscalDAO().marcarComoArquivada(fatura.getNotaFiscalId(), LocalDate.now());
                         if (notaFiscalArquivada) {
                             Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
@@ -670,10 +658,9 @@ public class MainView {
                             successAlert.setContentText("Todas as faturas da Nota Fiscal " + fatura.getNumeroNota() + " foram emitidas e a Nota Fiscal foi arquivada!");
                             successAlert.showAndWait();
 
-                            // Atualizar a lista e navegar para arquivadas
                             atualizarListaFaturas();
                             if (getBtnArquivadas() != null) {
-                                getBtnArquivadas().fire(); // Simula o clique para navegar
+                                getBtnArquivadas().fire();
                             }
                         } else {
                             Alert errorAlert = new Alert(Alert.AlertType.ERROR);
@@ -683,13 +670,26 @@ public class MainView {
                             errorAlert.showAndWait();
                         }
                     } else {
-                        // Se nem todas as faturas da nota foram emitidas, apenas atualiza a lista atual
-                        Alert infoAlert = new Alert(Alert.AlertType.INFORMATION);
-                        infoAlert.setTitle("Fatura Emitida");
-                        infoAlert.setHeaderText(null);
-                        infoAlert.setContentText("Fatura Nº " + fatura.getNumeroFatura() + " marcada como emitida. Aguardando outras faturas da Nota " + fatura.getNumeroNota() + " para arquivamento.");
-                        infoAlert.showAndWait();
-                        atualizarListaFaturas(); // Apenas recarrega a lista para refletir a mudança de status
+                        Fatura proximaFaturaDaMesmaNota = faturaDAO.obterProximaFaturaNaoEmitidaDaMesmaNota(fatura.getNotaFiscalId());
+                        ObservableList<Fatura> faturasParaExibir = FXCollections.observableArrayList();
+
+                        if (proximaFaturaDaMesmaNota != null) {
+                            faturasParaExibir.add(proximaFaturaDaMesmaNota);
+                            Alert infoAlert = new Alert(Alert.AlertType.INFORMATION);
+                            infoAlert.setTitle("Fatura Emitida");
+                            infoAlert.setHeaderText(null);
+                            infoAlert.setContentText("Fatura Nº " + fatura.getNumeroFatura() + " marcada como emitida. Próxima fatura da Nota " + fatura.getNumeroNota() + " exibida.");
+                            infoAlert.showAndWait();
+                        } else {
+                            Alert infoAlert = new Alert(Alert.AlertType.INFORMATION);
+                            infoAlert.setTitle("Fatura Emitida");
+                            infoAlert.setHeaderText(null);
+                            infoAlert.setContentText("Fatura Nº " + fatura.getNumeroFatura() + " marcada como emitida. Não há mais faturas não emitidas para esta nota.");
+                            infoAlert.showAndWait();
+                            atualizarListaFaturas();
+                            return;
+                        }
+                        mostrarListaFaturas(faturasParaExibir);
                     }
                 } else {
                     Alert errorAlert = new Alert(Alert.AlertType.ERROR);
@@ -706,6 +706,73 @@ public class MainView {
                 errorAlert.setContentText("Erro ao processar emissão da fatura: " + e.getMessage());
                 errorAlert.showAndWait();
             }
+        }
+    }
+
+    // NOVO MÉTODO: Abrir a janela modal de edição
+    private void abrirModalEdicao(int notaFiscalId) {
+        try {
+            NotaFiscalDAO notaFiscalDAO = new NotaFiscalDAO();
+            FaturaDAO faturaDAO = new FaturaDAO();
+
+            NotaFiscal notaParaEditar = notaFiscalDAO.obterNotaFiscalPorId(notaFiscalId);
+            ObservableList<Fatura> faturasParaEditar = faturaDAO.listarFaturasPorNotaFiscalId(notaFiscalId);
+
+            if (notaParaEditar == null) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Erro");
+                alert.setHeaderText(null);
+                alert.setContentText("Nota Fiscal não encontrada para edição.");
+                alert.showAndWait();
+                return;
+            }
+
+            // Critério de aceitação: A edição deve ser permitida apenas para notas que não estejam arquivadas.
+            // Isso já é tratado no updateItem do TableCell, mas um double-check aqui é bom.
+            if (notaParaEditar.isArquivada()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Atenção");
+                alert.setHeaderText(null);
+                alert.setContentText("Não é possível editar uma Nota Fiscal arquivada.");
+                alert.showAndWait();
+                return;
+            }
+
+            Stage modalStage = new Stage();
+            Window owner = root.getScene().getWindow();
+            modalStage.initOwner(owner);
+            modalStage.initModality(Modality.WINDOW_MODAL);
+            modalStage.setTitle("Editar Nota Fiscal e Faturas");
+
+            // Crie a view de edição passando os dados
+            NotaFaturaView edicaoView = new NotaFaturaView(notaParaEditar, faturasParaEditar);
+            new NotaFaturaController(edicaoView, notaParaEditar, faturasParaEditar); // Passe os dados para o controller também
+
+            Scene scene = new Scene(edicaoView.getRoot(), 850, 650); // Ajuste o tamanho conforme necessário
+            modalStage.setScene(scene);
+            modalStage.setResizable(false);
+
+            /* Adicionar ícone à janela modal
+            modalStage.getIcons().add(
+                    new Image(
+                            Objects.requireNonNull(
+                                    getClass().getResourceAsStream("/icons/edit.png") // Você precisará de um ícone 'edit.png'
+                            )
+                    )
+            );
+             */
+            // Adicione um listener para atualizar a lista principal quando o modal for fechado
+            modalStage.setOnHidden(e -> atualizarListaFaturas());
+
+            modalStage.showAndWait();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Erro");
+            alert.setHeaderText(null);
+            alert.setContentText("Erro ao carregar dados para edição: " + e.getMessage());
+            alert.showAndWait();
         }
     }
 
@@ -797,6 +864,6 @@ public class MainView {
     }
 
     public Label getConteudoLabel() {
-        return labelText; // CORRIGIDO: Retornar labelText, não conteudoLabel
+        return labelText;
     }
 }

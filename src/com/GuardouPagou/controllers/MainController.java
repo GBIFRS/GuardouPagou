@@ -74,7 +74,7 @@ public class MainController {
             new NotaFaturaController(notaView);
 
             // Define largura x altura maiores
-            Scene cena = new Scene(notaView.getRoot(), 700, 500);
+            Scene cena = new Scene(notaView.getRoot(), 850, 650);
 
             // Fecha com ESC
             cena.setOnKeyPressed(ev -> {
