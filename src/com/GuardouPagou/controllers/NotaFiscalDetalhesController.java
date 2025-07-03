@@ -3,77 +3,112 @@ package com.GuardouPagou.controllers;
 import com.GuardouPagou.models.Fatura;
 import com.GuardouPagou.models.NotaFiscal;
 import com.GuardouPagou.views.NotaFiscalDetalhesView;
+import com.GuardouPagou.views.NotaFaturaView; // Para abrir a tela de edicao
+import com.GuardouPagou.dao.FaturaDAO; // Para buscar faturas
+import com.GuardouPagou.dao.NotaFiscalDAO; // Para buscar Nota Fiscal
 import javafx.collections.FXCollections;
-import javafx.scene.control.Label;
+import javafx.collections.ObservableList;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.geometry.Insets;
-import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
-import java.text.NumberFormat;
-import java.time.format.DateTimeFormatter;
-import java.util.Locale;
+import javafx.stage.Window;
+import javafx.scene.image.Image; // Importar Image para o icone
+
+import java.sql.SQLException;
+import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class NotaFiscalDetalhesController {
 
+    private static final Logger LOGGER = Logger.getLogger(NotaFiscalDetalhesController.class.getName());
+
     private final NotaFiscalDetalhesView view;
     private final Stage stage;
-    private static final Locale PT_BR = Locale.forLanguageTag("pt-BR");
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy", PT_BR);
-    private static final NumberFormat CURRENCY_FMT = NumberFormat.getCurrencyInstance(PT_BR);
+
+    private NotaFiscal notaFiscalDetalhes;
+    private ObservableList<Fatura> faturasDetalhes;
 
     public NotaFiscalDetalhesController(NotaFiscalDetalhesView view, Stage stage) {
         this.view = view;
         this.stage = stage;
-        configurarBotoes();
+        configurarEventos();
     }
 
-    private void configurarBotoes() {
-        view.getBtnVoltar().setOnAction(e -> stage.close());
-        view.getBtnEditar().setOnAction(e -> {
-            // placeholder para implementação futura
-        });
+    private void configurarEventos() {
+        view.getBtnFechar().setOnAction(e -> stage.close());
+
+        view.getBtnEditar().setOnAction(e -> abrirModalEdicao());
     }
 
-    public void preencherDados(NotaFiscal nota) {
-        view.getNumeroNotaField().setText(nota.getNumeroNota());
-        view.getDataEmissaoPicker().setValue(nota.getDataEmissao());
-        view.getMarcaComboBox().setItems(FXCollections.observableArrayList(nota.getMarca()));
-        view.getMarcaComboBox().getSelectionModel().selectFirst();
+    // Metodo para preencher os dados na view (Chamado do MainController)
+    public void preencherDados(NotaFiscal notaFiscal) {
+        this.notaFiscalDetalhes = notaFiscal;
 
-        view.getVencimentosColumn().getChildren().clear();
-        view.getValoresColumn().getChildren().clear();
-        view.getStatusColumn().getChildren().clear();
+        try {
+            // Recarrega as faturas para garantir que sao as mais recentes
+            this.faturasDetalhes = FXCollections.observableArrayList(new FaturaDAO().listarFaturasDaNota(notaFiscal.getId()));
 
-        int index = 1;
-        for (Fatura f : nota.getFaturas()) {
-            // --- Vencimento ---
-            Label lblSubtituloVenc = new Label("Vencimento Fatura " + index + ":");
-            lblSubtituloVenc.getStyleClass().add("field-subtitle");
-            Label lv = new Label(DATE_FMT.format(f.getVencimento()));
-            VBox vencimentoBox = new VBox(5, lblSubtituloVenc, lv); // VBox com subtítulo e dado
-            vencimentoBox.getStyleClass().add("pill-field");
-            vencimentoBox.setPadding(new Insets(4, 10, 4, 10));
-            view.getVencimentosColumn().getChildren().add(vencimentoBox);
+            // CORRECAO: Chamar o metodo preencherDados da view com os objetos corretos
+            view.preencherDados(this.notaFiscalDetalhes, this.faturasDetalhes);
 
-            // --- Valor ---
-            Label lblSubtituloValor = new Label("Valor Fatura " + index + ":");
-            lblSubtituloValor.getStyleClass().add("field-subtitle");
-            Label val = new Label(CURRENCY_FMT.format(f.getValor()));
-            VBox valorBox = new VBox(5, lblSubtituloValor, val);
-            valorBox.getStyleClass().add("pill-field");
-            valorBox.setPadding(new Insets(4, 10, 4, 10));
-            view.getValoresColumn().getChildren().add(valorBox);
+        } catch (SQLException ex) {
+            LOGGER.log(Level.SEVERE, "Erro ao carregar faturas para detalhes da nota " + notaFiscal.getId(), ex);
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Erro");
+            alert.setHeaderText(null);
+            alert.setContentText("Erro ao carregar faturas para a tela de detalhes: " + ex.getMessage());
+            alert.showAndWait();
+            stage.close();
+        }
+    }
 
-            // --- Status ---
-            Label lblSubtituloStatus = new Label("Status Fatura " + index + ":");
-            lblSubtituloStatus.getStyleClass().add("field-subtitle");
-            Label st = new Label(f.getStatus());
-            VBox statusBox = new VBox(5, lblSubtituloStatus, st);
-            statusBox.getStyleClass().add("pill-field");
-            statusBox.setPadding(new Insets(4, 10, 4, 10));
-            view.getStatusColumn().getChildren().add(statusBox);
+    private void abrirModalEdicao() {
+        try {
+            if (notaFiscalDetalhes.isArquivada()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Atencao");
+                alert.setHeaderText(null);
+                alert.setContentText("Nao e possivel editar uma Nota Fiscal arquivada.");
+                alert.showAndWait();
+                return;
+            }
 
-            index++;
+            Stage edicaoModalStage = new Stage();
+            Window owner = stage.getOwner();
+            edicaoModalStage.initOwner(owner);
+            edicaoModalStage.initModality(Modality.WINDOW_MODAL);
+            edicaoModalStage.setTitle("Editar Nota Fiscal e Faturas");
+
+            NotaFaturaView edicaoView = new NotaFaturaView(this.notaFiscalDetalhes, this.faturasDetalhes);
+            new NotaFaturaController(edicaoView, this.notaFiscalDetalhes, this.faturasDetalhes);
+
+            Scene scene = new Scene(edicaoView.getRoot(), 850, 650);
+            edicaoModalStage.setScene(scene);
+            edicaoModalStage.setResizable(false);
+
+            // Icone da modal de edicao (comentar se o arquivo nao existir)
+            // edicaoModalStage.getIcons().add(
+            //     new Image(
+            //         Objects.requireNonNull(
+            //             getClass().getResourceAsStream("/icons/edit.png")
+            //         )
+            //     )
+            // );
+            edicaoModalStage.setOnHidden(e -> {
+                stage.close();
+            });
+
+            edicaoModalStage.showAndWait();
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Erro ao carregar dados para edicao da Nota Fiscal " + notaFiscalDetalhes.getId(), e);
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Erro");
+            alert.setHeaderText(null);
+            alert.setContentText("Erro ao abrir tela de edicao: " + e.getMessage());
+            alert.showAndWait();
         }
     }
 }

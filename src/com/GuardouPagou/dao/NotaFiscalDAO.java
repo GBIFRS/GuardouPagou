@@ -2,6 +2,7 @@ package com.GuardouPagou.dao;
 
 import com.GuardouPagou.models.DatabaseConnection;
 import com.GuardouPagou.models.NotaFiscal;
+import com.GuardouPagou.dao.MarcaDAO;
 import java.sql.*;
 import java.time.LocalDate;
 import java.util.List;
@@ -10,13 +11,44 @@ import java.util.Map;
 
 public class NotaFiscalDAO {
 
+    public boolean existeNotaFiscal(String numeroNota) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM notas_fiscais WHERE numero_nota = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, numeroNota);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean existeNotaFiscalComOutroId(String numeroNota, int idAtual) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM notas_fiscais WHERE numero_nota = ? AND id != ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, numeroNota);
+            stmt.setInt(2, idAtual);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        }
+        return false;
+    }
+
     public int inserirNotaFiscal(NotaFiscal nota) throws SQLException {
         String sql = "INSERT INTO notas_fiscais (numero_nota, data_emissao, marca_id) VALUES (?, ?, ?)";
         
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             
-            // Define os parâmetros da query
             stmt.setString(1, nota.getNumeroNota());
             stmt.setDate(2, Date.valueOf(nota.getDataEmissao()));
             Integer marcaId = new MarcaDAO().obterIdPorNome(nota.getMarca());
@@ -26,10 +58,8 @@ public class NotaFiscalDAO {
                 stmt.setNull(3, java.sql.Types.INTEGER);
             }
             
-            // Executa a inserção
             int affectedRows = stmt.executeUpdate();
             
-            // Verifica se a inserção foi bem-sucedida e retorna o ID gerado
             if (affectedRows > 0) {
                 try (ResultSet rs = stmt.getGeneratedKeys()) {
                     if (rs.next()) {
@@ -37,7 +67,52 @@ public class NotaFiscalDAO {
                     }
                 }
             }
-            return -1; // Retorna −1 se a inserção falhar
+            return -1;
+        }
+    }
+
+    // MÉTODO: Obter Nota Fiscal por ID (Completo, substitui o antigo buscarNotaFiscalPorId)
+    public NotaFiscal obterNotaFiscalPorId(int id) throws SQLException {
+        NotaFiscal nota = null;
+        String sql = "SELECT nf.id, nf.numero_nota, nf.data_emissao, m.nome AS marca, nf.arquivada, nf.data_arquivamento " +
+                     "FROM notas_fiscais nf LEFT JOIN marcas m ON nf.marca_id = m.id WHERE nf.id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    nota = new NotaFiscal();
+                    nota.setId(rs.getInt("id"));
+                    nota.setNumeroNota(rs.getString("numero_nota"));
+                    nota.setDataEmissao(rs.getDate("data_emissao").toLocalDate());
+                    nota.setMarca(rs.getString("marca"));
+                    nota.setArquivada(rs.getBoolean("arquivada"));
+                    Date dataArqSql = rs.getDate("data_arquivamento");
+                    nota.setDataArquivamento(dataArqSql != null ? dataArqSql.toLocalDate() : null);
+                }
+            }
+        }
+        return nota;
+    }
+
+    public boolean atualizarNotaFiscal(NotaFiscal nota) throws SQLException {
+        String sql = "UPDATE notas_fiscais SET numero_nota = ?, data_emissao = ?, marca_id = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, nota.getNumeroNota());
+            stmt.setDate(2, Date.valueOf(nota.getDataEmissao()));
+            Integer marcaId = new MarcaDAO().obterIdPorNome(nota.getMarca());
+            if (marcaId != null) {
+                stmt.setInt(3, marcaId);
+            } else {
+                stmt.setNull(3, java.sql.Types.INTEGER);
+            }
+            stmt.setInt(4, nota.getId());
+
+            int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0;
         }
     }
 
@@ -57,7 +132,7 @@ public class NotaFiscalDAO {
         List<Object> parametros = new ArrayList<>();
 
         StringBuilder sqlBuilder = new StringBuilder(
-                "SELECT nf.id, nf.numero_nota, m.nome AS marca, m.cor AS marca_cor, " +        // ← incluímos m.cor
+                "SELECT nf.id, nf.numero_nota, m.nome AS marca, m.cor AS marca_cor, " +
                         "       nf.data_arquivamento, " +
                         "       (SELECT COUNT(*) FROM faturas f WHERE f.nota_fiscal_id = nf.id) AS quantidade_faturas " +
                         "  FROM notas_fiscais nf " +
@@ -100,14 +175,12 @@ public class NotaFiscalDAO {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    // cria o DTO
                     NotaFiscalArquivadaDAO nota = new NotaFiscalArquivadaDAO(
                             rs.getString("numero_nota"),
                             rs.getInt   ("quantidade_faturas"),
                             rs.getString("marca"),
                             rs.getDate  ("data_arquivamento").toLocalDate()
                     );
-                    // seta a cor que veio do SELECT m.cor AS marca_cor
                     nota.setMarcaColor(rs.getString("marca_cor"));
                     notasArquivadas.add(nota);
                 }
@@ -115,25 +188,5 @@ public class NotaFiscalDAO {
         }
 
         return notasArquivadas;
-    }
-
-    public NotaFiscal buscarNotaFiscalPorId(int id) throws SQLException {
-        String sql = "SELECT nf.numero_nota, nf.data_emissao, m.nome AS marca " +
-                "FROM notas_fiscais nf LEFT JOIN marcas m ON nf.marca_id = m.id " +
-                "WHERE nf.id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, id);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    NotaFiscal nf = new NotaFiscal();
-                    nf.setNumeroNota(rs.getString("numero_nota"));
-                    nf.setDataEmissao(rs.getDate("data_emissao").toLocalDate());
-                    nf.setMarca(rs.getString("marca"));
-                    return nf;
-                }
-            }
-        }
-        return null;
     }
 }
